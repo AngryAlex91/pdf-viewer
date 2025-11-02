@@ -1,0 +1,145 @@
+import { defineStore } from 'pinia';
+import { ref, computed, type Ref, type ComputedRef, shallowRef } from 'vue';
+import type { PdfDocument, RenderTask } from '@/types';
+
+export const usePdfStore = defineStore('pdf', () => {
+  // State
+  const pdfDocument = shallowRef<PdfDocument | null>(null);
+  const pageNum = ref<number>(1);
+  const numPages = ref<number>(0);
+  const loading = ref<boolean>(false);
+  const loadingMessage = ref<string>('');
+  const errorMessage = ref<string>('');
+  const pdfTextContent = ref<Record<number, string>>({});
+  const renderTask = ref<RenderTask | null>(null);
+
+  // Computed
+  const hasDocument = computed<boolean>(() => !!pdfDocument.value);
+  
+  const currentPageText = computed<string>(() => 
+    pdfTextContent.value[pageNum.value] || ''
+  );
+  
+  const allText = computed<string>(() => 
+    Object.values(pdfTextContent.value).join('\n\n')
+  );
+  
+  const totalCharacters = computed<number>(() =>
+    Object.values(pdfTextContent.value).reduce(
+      (sum, text) => sum + text.length,
+      0
+    )
+  );
+
+  // Actions
+  const setDocument = (doc: PdfDocument | null): void => {
+    pdfDocument.value = doc;
+  };
+
+  const setNumPages = (num: number): void => {
+    numPages.value = num;
+  };
+
+  const setPageNum = (num: number): void => {
+    if (num >= 1 && num <= numPages.value) {
+      pageNum.value = num;
+    }
+  };
+
+  const nextPage = (): void => {
+    if (pageNum.value < numPages.value) {
+      pageNum.value++;
+    }
+  };
+
+  const previousPage = (): void => {
+    if (pageNum.value > 1) {
+      pageNum.value--;
+    }
+  };
+
+  const setLoading = (isLoading: boolean, message: string = ''): void => {
+    loading.value = isLoading;
+    loadingMessage.value = message;
+  };
+
+  const setError = (message: string): void => {
+    errorMessage.value = message;
+  };
+
+  const clearError = (): void => {
+    errorMessage.value = '';
+  };
+
+  const setPageText = (pageNumber: number, text: string): void => {
+    pdfTextContent.value[pageNumber] = text;
+  };
+
+  const setRenderTask = (task: RenderTask | null): void => {
+    renderTask.value = task;
+  };
+
+  const cancelRenderTask = (): void => {
+    if (renderTask.value) {
+      try {
+        renderTask.value.cancel();
+      } catch (e) {
+        console.error('Render task cancel error:', e);
+      }
+      renderTask.value = null;
+    }
+  };
+
+  const reset = (): void => {
+    if (pdfDocument.value) {
+      try {
+        pdfDocument.value.destroy();
+      } catch (e) {
+        console.error('Error destroying document:', e);
+      }
+    }
+
+    pdfDocument.value = null;
+    pageNum.value = 1;
+    numPages.value = 0;
+    loading.value = false;
+    loadingMessage.value = '';
+    errorMessage.value = '';
+    pdfTextContent.value = {};
+    renderTask.value = null;
+  };
+
+  return {
+    // State
+    pdfDocument,
+    pageNum,
+    numPages,
+    loading,
+    loadingMessage,
+    errorMessage,
+    pdfTextContent,
+    renderTask,
+
+    // Computed
+    hasDocument,
+    currentPageText,
+    allText,
+    totalCharacters,
+
+    // Actions
+    setDocument,
+    setNumPages,
+    setPageNum,
+    nextPage,
+    previousPage,
+    setLoading,
+    setError,
+    clearError,
+    setPageText,
+    setRenderTask,
+    cancelRenderTask,
+    reset,
+  };
+});
+
+export type PdfStore = ReturnType<typeof usePdfStore>;

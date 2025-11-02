@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    // recommended for Vite
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["vite/client"]
+  }
+}

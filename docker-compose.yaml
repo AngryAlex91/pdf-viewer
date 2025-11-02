@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pdf-viewer-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # simple healthcheck that doesn't require curl
+    healthcheck:
+      test: [ "CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1" ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pdf-viewer-network
+
+  pdf-viewer-app:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -lc "npm ci && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
+    ports:
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      # If your code reads VITE_OLLAMA_URL from env:
+      - VITE_OLLAMA_URL=http://ollama:11434
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - ollama
+    networks:
+      - pdf-viewer-network
+
+  # Pulls a model into the same volume the server uses
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: /bin/sh
+    command: >
+      -c "echo 'Waiting for Ollama...' &&
+          until ollama list >/dev/null 2>&1; do echo '  ...not yet'; sleep 2; done &&
+          echo 'Pulling llama3.2...' && ollama pull llama3.2 &&
+          echo 'Model ready!'"
+    restart: "no"
+    networks:
+      - pdf-viewer-network
+
+volumes:
+  ollama_data:
+
+
+networks:
+  pdf-viewer-network:
