@@ -16,6 +16,7 @@
   "dependencies": {
     "pdfjs-dist": "^4.0.0",
     "pinia": "^3.0.3",
+    "terser": "^5.44.0",
     "vue": "^3.4.0"
   },
   "devDependencies": {

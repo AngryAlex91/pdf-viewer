@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia';
-import { ref, computed, type Ref, type ComputedRef, shallowRef } from 'vue';
-import type { PdfDocument, RenderTask } from '@/types';
+import { ref, computed, shallowRef } from 'vue';
+
+import { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 
 export const usePdfStore = defineStore('pdf', () => {
   // State
-  const pdfDocument = shallowRef<PdfDocument | null>(null);
+  const pdfDocument = shallowRef<PDFDocumentProxy | null>(null);
   const pageNum = ref<number>(1);
   const numPages = ref<number>(0);
   const loading = ref<boolean>(false);
@@ -32,7 +33,7 @@ export const usePdfStore = defineStore('pdf', () => {
   );
 
   // Actions
-  const setDocument = (doc: PdfDocument | null): void => {
+  const setDocument = (doc: PDFDocumentProxy | null): void => {
     pdfDocument.value = doc;
   };
 

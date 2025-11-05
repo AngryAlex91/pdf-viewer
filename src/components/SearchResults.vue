@@ -1,7 +1,7 @@
 <template>
     <div class="search-results">
-        <h4>Found {{ searchStore.resultCount }} results:</h4>
-        <div v-for="(result, index) in searchStore.searchResults" :key="index" class="search-result-item"
+        <h4>Found {{ resultCount }} results:</h4>
+        <div v-for="(result, index) in searchResults" :key="index" class="search-result-item"
             @click="handleClick(result)">
             <strong>Page {{ result.pageNum }}:</strong>
             <span class="result-text">{{ result.context }}</span>
@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { useSearchStore } from '@/stores/searchStore';
 import type { SearchResult } from '@/types';
+import { storeToRefs } from 'pinia';
 
 interface Emits {
     (e: 'result-clicked', result: SearchResult): void;
@@ -20,6 +21,8 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const searchStore = useSearchStore();
+
+const { searchResults, resultCount } = storeToRefs(searchStore);
 
 const handleClick = (result: SearchResult): void => {
     emit('result-clicked', result);
@@ -34,13 +37,13 @@ const handleClick = (result: SearchResult): void => {
     max-height: 300px;
     overflow-y: auto;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
 
-.search-results h4 {
-    margin-top: 0;
-    margin-bottom: 12px;
-    color: #333;
-    font-size: 16px;
+    h4 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        color: #333;
+        font-size: 16px;
+    }
 }
 
 .search-result-item {
@@ -51,12 +54,12 @@ const handleClick = (result: SearchResult): void => {
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
-}
 
-.search-result-item:hover {
-    background: #e3f2fd;
-    border-color: #2196F3;
-    transform: translateX(4px);
+    &:hover {
+        background: #e3f2fd;
+        border-color: #2196F3;
+        transform: translateX(4px);
+    }
 }
 
 .result-text {

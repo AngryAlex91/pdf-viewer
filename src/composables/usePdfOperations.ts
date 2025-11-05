@@ -1,18 +1,20 @@
 import { usePdfStore } from '@/stores/pdfStore';
 import * as pdfjsLib from 'pdfjs-dist';
-import type { PdfDocument, PdfPage, PdfViewport } from '@/types';
+import { TextLayer, PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
+import { storeToRefs } from 'pinia';
+import { TextItem } from 'pdfjs-dist/types/src/display/api';
 
-// Set worker source
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
-interface RenderResult {
-  page: PdfPage;
-  viewport: PdfViewport;
-}
-
 interface UsePdfOperations {
-  loadPdf: (file: File) => Promise<PdfDocument>;
-  renderPage: (canvas: HTMLCanvasElement, pageNumber: number, scale?: number) => Promise<RenderResult>;
+  loadPdf: (file: File) => Promise<PDFDocumentProxy>;
+  renderPage: (canvas: HTMLCanvasElement, pageNumber: number, scale: number, textLayerDiv?: HTMLDivElement) => Promise<void>;
+  renderTextLayer: (
+    page: PDFPageProxy,
+    viewport: PageViewport,
+    container: HTMLDivElement
+  ) => Promise<void>;
   extractTextFromPage: (pageNumber: number) => Promise<string>;
   extractAllText: () => Promise<void>;
 }
@@ -20,10 +22,9 @@ interface UsePdfOperations {
 export function usePdfOperations(): UsePdfOperations {
   const pdfStore = usePdfStore();
 
-  /**
-   * Load PDF from file
-   */
-  const loadPdf = async (file: File): Promise<PdfDocument> => {
+  const { pdfDocument } = storeToRefs(pdfStore);
+
+  const loadPdf = async (file: File): Promise<PDFDocumentProxy> => {
     if (!file) {
       throw new Error('No file provided');
     }
@@ -37,7 +38,7 @@ export function usePdfOperations(): UsePdfOperations {
     pdfStore.setLoading(true, 'Loading PDF...');
     pdfStore.clearError();
 
-    return new Promise<PdfDocument>((resolve, reject) => {
+    return new Promise<PDFDocumentProxy>((resolve, reject) => {
       const fileReader = new FileReader();
 
       fileReader.onload = async (e: ProgressEvent<FileReader>) => {
@@ -51,11 +52,10 @@ export function usePdfOperations(): UsePdfOperations {
             cMapPacked: true,
           });
 
-          const doc = await loadingTask.promise as unknown as PdfDocument;
+          const doc = await loadingTask.promise;
           pdfStore.setDocument(doc);
           pdfStore.setNumPages(doc.numPages);
           pdfStore.setPageNum(1);
-
           resolve(doc);
         } catch (error) {
           console.error('Error loading PDF:', error);
@@ -76,19 +76,18 @@ export function usePdfOperations(): UsePdfOperations {
     });
   };
 
-  /**
-   * Render a specific page
-   */
+
   const renderPage = async (
     canvas: HTMLCanvasElement,
     pageNumber: number,
-    scale: number = 1.5
-  ): Promise<RenderResult> => {
-    if (!pdfStore.pdfDocument) {
+    scale: number = 1,
+    textLayerDiv?: HTMLDivElement
+  ): Promise<void> => {
+    if (!pdfDocument.value) {
       throw new Error('No PDF document loaded');
     }
-    
-    if (pageNumber < 1 || pageNumber > pdfStore.numPages) {
+
+    if (pageNumber < 1 || pageNumber > pdfDocument.value.numPages) {
       throw new Error('Invalid page number');
     }
 
@@ -97,14 +96,10 @@ export function usePdfOperations(): UsePdfOperations {
     pdfStore.clearError();
 
     try {
-      if (!pdfStore.pdfDocument) {
+      if (!pdfDocument.value) {
         throw new Error('PDF document was destroyed');
       }
-      const page = await pdfStore.pdfDocument.getPage(pageNumber);
-      
-      if (!canvas) {
-        throw new Error('Canvas element not found');
-      }
+      const page = await pdfDocument.value.getPage(pageNumber);
 
       const context = canvas.getContext('2d');
 
@@ -127,10 +122,14 @@ export function usePdfOperations(): UsePdfOperations {
 
       await task.promise;
 
+      if (textLayerDiv) {
+        await renderTextLayer(page, viewport, textLayerDiv);
+      }
+
       pdfStore.setRenderTask(null);
       pdfStore.setLoading(false);
 
-      return { page, viewport };
+      return;
     } catch (error) {
       pdfStore.setRenderTask(null);
 
@@ -145,25 +144,49 @@ export function usePdfOperations(): UsePdfOperations {
     }
   };
 
-  /**
-   * Extract text from a specific page
-   */
+
+  const renderTextLayer = async (
+    page: PDFPageProxy,
+    viewport: PageViewport,
+    container: HTMLDivElement
+  ): Promise<void> => {
+ 
+    try {
+      container.innerHTML = '';
+      const textContent = await page.getTextContent();
+      
+      container.style.setProperty('--scale-factor', viewport.scale.toString());
+      
+      const textLayer = new TextLayer({
+        textContentSource: textContent,
+        container: container,
+        viewport: viewport,
+      });
+      
+      await textLayer.render();
+    } catch (error) {
+      console.error('Error rendering text layer:', error);
+      throw error;
+    }
+  };
+
+
   const extractTextFromPage = async (pageNumber: number): Promise<string> => {
-    if (!pdfStore.pdfDocument) return '';
+    if (!pdfDocument.value) return '';
 
     try {
-      const page = await pdfStore.pdfDocument.getPage(pageNumber);
+      const page = await pdfDocument.value.getPage(pageNumber);
       const textContent = await page.getTextContent();
 
-      
+
       // Better text joining for Japanese/CJK characters
       let text = '';
-      textContent.items.forEach((item, index) => {
+      textContent.items.forEach((item: TextItem, index: number) => {
         const str = item.str || '';
 
         // Check if current or next item contains CJK characters
         const hasCJK = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]/.test(str);
-        const nextItem = textContent.items[index + 1];
+        const nextItem = textContent.items[index + 1] as TextItem;
         const nextHasCJK = nextItem && /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]/.test(nextItem.str || '');
 
         text += str;
@@ -183,11 +206,8 @@ export function usePdfOperations(): UsePdfOperations {
     }
   };
 
-  /**
-   * Extract text from all pages
-   */
   const extractAllText = async (): Promise<void> => {
-    if (!pdfStore.pdfDocument) return;
+    if (!pdfDocument.value) return;
 
     pdfStore.setLoading(true, 'Extracting text from PDF...');
 
@@ -209,5 +229,6 @@ export function usePdfOperations(): UsePdfOperations {
     renderPage,
     extractTextFromPage,
     extractAllText,
+    renderTextLayer
   };
 }

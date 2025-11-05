@@ -1,18 +1,11 @@
 <template>
     <div class="ollama-status">
-        <div v-if="!ollamaStore.connected" class="status-warning">
+        <div v-if="!connected" class="status-warning">
             <h3>⚠️ Ollama Not Running</h3>
-            <p>Please install and run Ollama:</p>
-            <ol>
-                <li>Download from <a href="https://ollama.ai" target="_blank">ollama.ai</a></li>
-                <li>Install on your computer</li>
-                <li>Run: <code>ollama run llama3.2</code></li>
-                <li>Refresh this page</li>
-            </ol>
             <button @click="handleCheckConnection">Check Connection</button>
         </div>
         <div v-else class="status-success">
-            ✅ Ollama Connected | Model: {{ ollamaStore.currentModel }}
+            ✅ Ollama Connected | Model: {{ currentModel }}
             <button @click="handleCheckConnection" class="small-btn">Refresh</button>
         </div>
     </div>
@@ -22,13 +15,16 @@
 import { onMounted } from 'vue';
 import { useOllamaStore } from '@/stores/ollamaStore';
 import { useOllama } from '@/composables/useOllama';
+import { storeToRefs } from 'pinia';
 
 const ollamaStore = useOllamaStore();
+const { currentModel, connected } = storeToRefs(ollamaStore);
 const { checkConnection } = useOllama();
 
 const handleCheckConnection = async (): Promise<void> => {
     await checkConnection();
 };
+
 
 onMounted(() => {
     checkConnection();
@@ -38,7 +34,6 @@ onMounted(() => {
 <style scoped>
 .ollama-status {
     margin-bottom: 20px;
-    padding: 20px;
     border-radius: 8px;
 }
 
@@ -47,29 +42,31 @@ onMounted(() => {
     border: 2px solid #ffc107;
     padding: 20px;
     border-radius: 8px;
+
+    h3 {
+        margin-bottom: 10px;
+        color: #856404;
+    }
+
+    p,
+    ol {
+        color: #856404;
+        margin-bottom: 10px;
+    }
+
+    code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+
+    a {
+        color: #004085;
+        text-decoration: underline;
+    }
 }
 
-.status-warning h3 {
-    margin-top: 0;
-    color: #856404;
-}
-
-.status-warning ol {
-    text-align: left;
-    margin: 15px 0;
-}
-
-.status-warning code {
-    background: #f8f9fa;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: monospace;
-}
-
-.status-warning a {
-    color: #004085;
-    font-weight: bold;
-}
 
 .status-success {
     background: #d4edda;
@@ -102,9 +99,9 @@ button {
     cursor: pointer;
     font-size: 14px;
     transition: background-color 0.3s;
-}
 
-button:hover {
-    background-color: #45a049;
+    &:hover:not(:disabled) {
+        background-color: #45a049;
+    }
 }
 </style>

@@ -1,118 +1,121 @@
 <template>
   <div class="pdf-ai-viewer">
-    <h2>PDF Viewer with Local AI (Ollama)</h2>
 
-    <!-- Status Component -->
-    <OllamaStatus />
+    <div class="control-container">
 
-    <!-- Controls Component -->
-    <PdfControls @file-loaded="handleFileLoaded" @page-changed="handlePageChanged" @reset="handleReset" />
+      <PdfControls @file-loaded="handleFileLoaded" @page-changed="handlePageChanged" @reset="handleReset" />
 
-    <!-- AI Command Panel -->
-    <AiCommandPanel @command-submitted="handleCommand" @result-clicked="handleResultClick" />
+      <AiCommandPanel @command-submitted="handleCommand" @result-clicked="handleResultClick" />
 
-    <!-- PDF Canvas -->
-    <PdfCanvas ref="pdfCanvasRef" :scale="1.5" />
-
-    <!-- Loading Indicator -->
-    <div v-if="pdfStore.loading" class="loading">
-      {{ pdfStore.loadingMessage }}
     </div>
 
-    <!-- Error Display -->
-    <div v-if="pdfStore.errorMessage" class="error">
-      {{ pdfStore.errorMessage }}
+    <div class="pdf-container">
+
+      <PdfCanvas ref="pdfCanvasRef" />
+
+      <div v-if="loadingMessage" class="loading">
+        {{ loadingMessage }}
+      </div>
+
+      <div v-if="errorMessage" class="error">
+        {{ errorMessage }}
+      </div>
     </div>
+
   </div>
+
 </template>
 
 <script setup>
 import { ref } from 'vue';
-import { usePdfStore } from './stores/pdfStore';
-import { useSearchStore } from './stores/searchStore';
-import { usePdfOperations } from './composables/usePdfOperations';
-import { usePdfSearch } from './composables/usePdfSearch';
-import { useAiCommands } from './composables/useAiCommands';
+import { usePdfStore } from '@/stores/pdfStore';
+import { useSearchStore } from '@/stores/searchStore';
+import { usePdfOperations } from '@/composables/usePdfOperations';
+import { usePdfSearch } from '@/composables/usePdfSearch';
+import { useAiCommands } from '@/composables/useAiCommands';
 
-import OllamaStatus from './components/OllamaStatus.vue';
-import PdfControls from './components/PdfControls.vue';
-import AiCommandPanel from './components/AiCommandPanel.vue';
-import PdfCanvas from './components/PdfCanvas.vue';
+import PdfControls from '@/components/PdfControls.vue';
+import AiCommandPanel from '@/components/AiCommandPanel.vue';
+import PdfCanvas from '@/components/PdfCanvas.vue';
+import { storeToRefs } from 'pinia';
 
 const pdfStore = usePdfStore();
 const searchStore = useSearchStore();
 const pdfCanvasRef = ref(null);
 
+const { loadingMessage, errorMessage } = storeToRefs(pdfStore);
+const { currentSearchTerm } = storeToRefs(searchStore);
+
 const { loadPdf, renderPage } = usePdfOperations();
-const { highlightTextOnPage } = usePdfSearch();
+const { highlightTextOnPage, clearHighlights } = usePdfSearch();
 const { handleCommand: processCommand } = useAiCommands();
 
-/**
- * Handle file loaded
- */
 const handleFileLoaded = async (file) => {
   try {
     await loadPdf(file);
 
-    // Render first page
-    if (pdfCanvasRef.value?.canvas) {
-      await renderPage(pdfCanvasRef.value.canvas, 1);
+    const canvas = pdfCanvasRef.value?.canvas;
+    const textLayer = pdfCanvasRef.value?.textLayer;
+    if (canvas && textLayer) {
+      await renderPage(canvas, 1, 1, textLayer);
     }
   } catch (error) {
     console.error('Error loading PDF:', error);
   }
 };
 
-/**
- * Handle page changed
- */
 const handlePageChanged = async (pageNumber) => {
-  if (pdfCanvasRef.value?.canvas) {
-    await renderPage(pdfCanvasRef.value.canvas, pageNumber);
+  const canvas = pdfCanvasRef.value?.canvas;
+  const textLayer = pdfCanvasRef.value?.textLayer;
+  if (canvas && textLayer) {
+    await renderPage(canvas, pageNumber, 1, textLayer);
 
-    // Re-highlight if there's a current search
-    if (searchStore.currentSearchTerm) {
-      await highlightTextOnPage(searchStore.currentSearchTerm);
+    if (currentSearchTerm.value) {
+      await highlightTextOnPage(currentSearchTerm.value, textLayer);
     }
   }
 };
 
-/**
- * Handle reset
- */
+
 const handleReset = () => {
-  // Stores are already reset by PdfControls component
-  // Just clear the canvas
-  if (pdfCanvasRef.value?.canvas) {
-    const ctx = pdfCanvasRef.value.canvas.getContext('2d');
-    ctx.clearRect(0, 0, pdfCanvasRef.value.canvas.width, pdfCanvasRef.value.canvas.height);
+  const textLayer = pdfCanvasRef.value?.textLayer;
+
+  if (textLayer) {
+    clearHighlights(textLayer);
+  }
+
+  const canvas = pdfCanvasRef.value?.canvas;
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  if (textLayer) {
+    textLayer.removeAttribute('style');
   }
 };
 
-/**
- * Handle AI command
- */
 const handleCommand = async (command) => {
   const result = await processCommand(command);
-
-  // If command returned a result (e.g., search result), navigate to it
   if (result && result.pageNum) {
     await handleResultClick(result);
   }
 };
 
-/**
- * Handle search result click
- */
 const handleResultClick = async (result) => {
+
   pdfStore.setPageNum(result.pageNum);
 
-  if (pdfCanvasRef.value?.canvas) {
-    await renderPage(pdfCanvasRef.value.canvas, result.pageNum);
+  const canvas = pdfCanvasRef.value?.canvas;
+  const textLayer = pdfCanvasRef.value?.textLayer;
 
-    // Highlight the search term on the page
-    if (searchStore.currentSearchTerm) {
-      await highlightTextOnPage(searchStore.currentSearchTerm);
+  if (canvas && textLayer) {
+    await renderPage(canvas, result.pageNum, 1, textLayer);
+
+    if (currentSearchTerm.value) {
+      await highlightTextOnPage(currentSearchTerm.value, textLayer);
     }
   }
 };
@@ -120,15 +123,18 @@ const handleResultClick = async (result) => {
 
 <style scoped>
 .pdf-ai-viewer {
-  max-width: 1200px;
+  display: flex;
+  flex-direction: row;
+  max-height: 100%;
   margin: 0 auto;
-  padding: 20px;
-}
+  padding: 20px 20px;
+  gap: 20px;
 
-h2 {
-  text-align: center;
-  margin-bottom: 20px;
-  color: #333;
+  @media screen and (max-width: 1200px) {
+    flex-direction: column;
+    padding: 10px 10px;
+  }
+
 }
 
 .loading {
@@ -149,5 +155,17 @@ h2 {
   border-radius: 8px;
   margin-top: 10px;
   border: 1px solid #ef9a9a;
+}
+
+.control-container {
+  display: flex;
+  flex-direction: column;
+  width: 60dvh
+}
+
+.pdf-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
 }
 </style>

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed, type Ref, type ComputedRef } from 'vue';
+import { ref, computed } from 'vue';
 
 export const useOllamaStore = defineStore('ollama', () => {
   // State

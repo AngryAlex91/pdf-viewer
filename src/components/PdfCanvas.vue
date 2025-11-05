@@ -1,55 +1,74 @@
 <template>
-    <div class="canvas-container" v-if="ollamaStore.connected">
-        <div class="pdf-viewer-wrapper">
-            <canvas ref="canvasRef"></canvas>
 
-            <!-- Highlight overlay -->
-            <div v-if="searchStore.hasHighlights" class="highlight-layer">
-                <div v-for="(highlight, index) in searchStore.highlights" :key="index" class="highlight-box" :style="{
-                    left: highlight.x + 'px',
-                    top: highlight.y + 'px',
-                    width: highlight.width + 'px',
-                    height: highlight.height + 'px'
-                }"></div>
-            </div>
+    <div class="canvas-container" v-if="connected">
+        <div class="pdf-viewer-wrapper" ref="wrapperRef">
+            <canvas v-if="pdfDocument" ref="canvasRef"></canvas>
+            <div ref="textLayerRef" class="textLayer"></div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, type Ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useOllamaStore } from '@/stores/ollamaStore';
 import { useSearchStore } from '@/stores/searchStore';
+import { usePdfStore } from '@/stores/pdfStore';
+import { usePdfSearch } from '@/composables/usePdfSearch';
+import { storeToRefs } from 'pinia';
 
-interface Props {
-    scale?: number;
-}
 
-withDefaults(defineProps<Props>(), {
-    scale: 1.5
-});
 
 const ollamaStore = useOllamaStore();
 const searchStore = useSearchStore();
-const canvasRef = ref<HTMLCanvasElement | null>(null);
+const pdfStore = usePdfStore();
 
-// Expose canvas ref for parent component
+const { connected } = storeToRefs(ollamaStore);
+const { currentSearchTerm } = storeToRefs(searchStore);
+const { pageNum, pdfDocument } = storeToRefs(pdfStore);
+
+const { highlightTextOnPage } = usePdfSearch();
+
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+const textLayerRef = ref<HTMLDivElement | null>(null);
+const wrapperRef = ref<HTMLDivElement | null>(null);
+
+
+watch(() => currentSearchTerm.value, async (newTerm) => {
+    if (textLayerRef.value) {
+        if (newTerm) {
+            await highlightTextOnPage(newTerm, textLayerRef.value);
+        }
+    }
+});
+
+watch(() => pageNum.value, async () => {
+    if (currentSearchTerm.value && textLayerRef.value) {
+        await highlightTextOnPage(currentSearchTerm.value, textLayerRef.value);
+    }
+});
+
+
 defineExpose({
-    canvas: canvasRef
+    canvas: canvasRef,
+    textLayer: textLayerRef,
+
 });
 </script>
 
 <style scoped>
 .canvas-container {
+    flex-direction: column;
     position: relative;
     border: 1px solid #ddd;
     border-radius: 8px;
     overflow: auto;
-    background-color: #f5f5f5;
+    background-color: white;
     display: flex;
-    justify-content: center;
+    align-items: center;
+    justify-content: start;
     padding: 20px;
     min-height: 400px;
+
 }
 
 .pdf-viewer-wrapper {
@@ -60,41 +79,38 @@ defineExpose({
 canvas {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     background-color: white;
-    max-width: 100%;
     height: auto;
     display: block;
 }
 
-.highlight-layer {
+.textLayer {
     position: absolute;
-    top: 0;
     left: 0;
-    pointer-events: none;
-    width: 100%;
-    height: 100%;
-    z-index: 10;
-}
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    line-height: 1.0;
+    text-size-adjust: none;
+    forced-color-adjust: none;
+    pointer-events: auto;
+    opacity: 0.5;
+    width: fit-content;
 
-.highlight-box {
-    position: absolute;
-    background-color: rgba(255, 255, 0, 0.5);
-    border: 2px solid rgba(255, 200, 0, 0.9);
-    pointer-events: none;
-    animation: highlight-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
-}
+    &:deep(span) {
+        color: transparent;
+        position: absolute;
+        white-space: pre;
+        cursor: text;
+        transform-origin: 0% 0%;
 
-@keyframes highlight-pulse {
-
-    0%,
-    100% {
-        background-color: rgba(255, 255, 0, 0.5);
-        border-color: rgba(255, 200, 0, 0.9);
-    }
-
-    50% {
-        background-color: rgba(255, 255, 0, 0.7);
-        border-color: rgba(255, 200, 0, 1);
+        &.highlight {
+            background-color: rgba(255, 255, 0, 1) !important;
+            color: transparent !important;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.9);
+            border-radius: 2px;
+            z-index: 2;
+        }
     }
 }
 </style>

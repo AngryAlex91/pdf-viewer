@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
-import { ref, computed, type Ref, type ComputedRef } from 'vue';
-import type { SearchResult, Highlight } from '@/types';
+import { ref, computed } from 'vue';
+import type { SearchResult } from '@/types';
 
 export const useSearchStore = defineStore('search', () => {
   // State

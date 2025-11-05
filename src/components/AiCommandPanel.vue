@@ -1,41 +1,42 @@
 <template>
-    <div class="ai-command-section" v-if="ollamaStore.connected && pdfStore.numPages > 0">
-        <h3>🤖 AI Assistant (Local & Private)</h3>
+    <div class="ai-command-section">
+        <div class="command-header">
+            <h3>🤖 AI Assistant</h3>
+            <OllamaStatus />
+        </div>
+        <div v-if="connected && pdfDocument" class="command-chat-box">
+            <div class="command-examples">
+                <strong>Try: &nbsp;</strong>
+                <button @click="setCommand('find contract')" class="example-btn">
+                    Find "contract"
+                </button>
+                <button @click="setCommand('summarize this page')" class="example-btn">
+                    Summarize page
+                </button>
+                <button @click="setCommand('what is this about')" class="example-btn">
+                    What is this about?
+                </button>
+            </div>
 
-        <div class="command-examples">
-            <strong>Try:</strong>
-            <button @click="setCommand('find contract')" class="example-btn">
-                Find "contract"
-            </button>
-            <button @click="setCommand('summarize this page')" class="example-btn">
-                Summarize page
-            </button>
-            <button @click="setCommand('what is this about')" class="example-btn">
-                What is this about?
-            </button>
+            <div class="command-input-wrapper">
+                <textarea v-model="userCommand" placeholder="Examples:
+                • find invoice
+                • search for total amount  
+                • summarize this page
+                • what is this document about?" rows="3" @keydown.ctrl.enter="handleSubmit"
+                    :disabled="aiProcessing"></textarea>
+                <button @click="handleSubmit" :disabled="!userCommand.trim() || aiProcessing" class="ai-button">
+                    {{ aiProcessing ? 'Processing...' : 'Ask AI' }}
+                </button>
+            </div>
         </div>
 
-        <div class="command-input-wrapper">
-            <textarea v-model="searchStore.userCommand" placeholder="Examples:
-• find invoice
-• search for total amount  
-• summarize this page
-• what is this document about?" rows="3" @keydown.ctrl.enter="handleSubmit"
-                :disabled="searchStore.aiProcessing"></textarea>
-            <button @click="handleSubmit" :disabled="!searchStore.userCommand.trim() || searchStore.aiProcessing"
-                class="ai-button">
-                {{ searchStore.aiProcessing ? 'Processing...' : 'Ask AI' }}
-            </button>
-        </div>
-
-        <!-- AI Response -->
-        <div v-if="searchStore.aiResponse" class="ai-response">
+        <div v-if="aiResponse" class="ai-response">
             <h4>AI Response:</h4>
-            <div>{{ searchStore.aiResponse }}</div>
+            <div>{{ aiResponse }}</div>
         </div>
 
-        <!-- Search Results -->
-        <SearchResults v-if="searchStore.hasResults" @result-clicked="handleResultClick" />
+        <SearchResults v-if="hasResults" @result-clicked="handleResultClick" />
     </div>
 </template>
 
@@ -45,6 +46,8 @@ import { usePdfStore } from '@/stores/pdfStore';
 import { useSearchStore } from '@/stores/searchStore';
 import SearchResults from '@/components/SearchResults.vue';
 import type { SearchResult } from '@/types';
+import OllamaStatus from '@/components/OllamaStatus.vue';
+import { storeToRefs } from 'pinia';
 
 interface Emits {
     (e: 'command-submitted', command: string): void;
@@ -57,13 +60,17 @@ const ollamaStore = useOllamaStore();
 const pdfStore = usePdfStore();
 const searchStore = useSearchStore();
 
+const { userCommand, aiProcessing, aiResponse, hasResults } = storeToRefs(searchStore);
+const { pdfDocument } = storeToRefs(pdfStore);
+const { connected } = storeToRefs(ollamaStore);
+
 const setCommand = (cmd: string): void => {
     searchStore.setCommand(cmd);
 };
 
 const handleSubmit = (): void => {
-    if (!searchStore.userCommand.trim() || searchStore.aiProcessing) return;
-    emit('command-submitted', searchStore.userCommand);
+    if (!userCommand.value.trim() || aiProcessing.value) return;
+    emit('command-submitted', userCommand.value);
 };
 
 const handleResultClick = (result: SearchResult): void => {
@@ -76,15 +83,14 @@ const handleResultClick = (result: SearchResult): void => {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 12px;
     padding: 24px;
-    margin-bottom: 20px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
 
-.ai-command-section h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: white;
-    font-size: 20px;
+    h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: white;
+        font-size: 20px;
+    }
 }
 
 .command-examples {
@@ -102,13 +108,14 @@ const handleResultClick = (result: SearchResult): void => {
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.3s;
-}
 
-.example-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    &:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
 }
 
 .command-input-wrapper {
+    min-height: 15dvh;
     display: flex;
     gap: 10px;
     margin-bottom: 15px;
@@ -123,17 +130,17 @@ textarea {
     font-size: 14px;
     resize: vertical;
     background: white;
-}
 
-textarea:focus {
-    outline: none;
-    border-color: #4CAF50;
-    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-}
+    &:focus {
+        outline: none;
+        border-color: #2196F3;
+        box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
+    }
 
-textarea:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
+    &:disabled {
+        background-color: #f5f5f5;
+        cursor: not-allowed;
+    }
 }
 
 .ai-button {
@@ -148,17 +155,18 @@ textarea:disabled {
     padding: 8px 16px;
     cursor: pointer;
     transition: all 0.3s;
-}
 
-.ai-button:hover:not(:disabled) {
-    background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
+    &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        transform: translateY(-2px);
+    }
 
-.ai-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+    &:disabled {
+        background: #cccccc;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
 }
 
 .ai-response {
@@ -170,12 +178,13 @@ textarea:disabled {
     white-space: pre-wrap;
     max-height: 400px;
     overflow-y: auto;
-}
 
-.ai-response h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #2196F3;
-    font-size: 16px;
+    h4 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #2196F3;
+        font-size: 16px;
+    }
+
 }
 </style>

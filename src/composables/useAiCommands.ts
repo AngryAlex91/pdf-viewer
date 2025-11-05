@@ -1,14 +1,14 @@
 import { usePdfStore } from '@/stores/pdfStore';
 import { useSearchStore } from '@/stores/searchStore';
-import { useOllama } from './useOllama';
-import { usePdfOperations } from './usePdfOperations';
-import { usePdfSearch } from './usePdfSearch';
+import { useOllama } from '@/composables/useOllama';
+import { usePdfOperations } from '@/composables/usePdfOperations';
+import { usePdfSearch } from '@/composables/usePdfSearch';
 import type { SearchResult } from '@/types';
 
 interface UseAiCommands {
   handleCommand: (command: string) => Promise<SearchResult | null>;
   handleSearchCommand: (command: string) => Promise<SearchResult | null>;
-  handleNavigateCommand: (command: string) => Promise<number | SearchResult | null>;
+  handleNavigateCommand: (command: string) => Promise<SearchResult | null>;
   handleSummarizeCommand: (command: string) => Promise<void>;
   handleExtractCommand: (command: string) => Promise<void>;
   handleGeneralCommand: (command: string) => Promise<void>;
@@ -22,9 +22,7 @@ export function useAiCommands(): UseAiCommands {
   const { extractAllText } = usePdfOperations();
   const { searchInPDF } = usePdfSearch();
 
-  /**
-   * Extract search term from command
-   */
+
   const extractSearchTerm = (command: string): string => {
     let term = command
       .replace(/^(find|search|look for|locate)\s+/gi, '')
@@ -37,9 +35,7 @@ export function useAiCommands(): UseAiCommands {
     return term;
   };
 
-  /**
-   * Handle search command
-   */
+
   const handleSearchCommand = async (command: string): Promise<SearchResult | null> => {
     const searchTerm = extractSearchTerm(command);
 
@@ -56,7 +52,7 @@ export function useAiCommands(): UseAiCommands {
       searchStore.setResponse(
         `Found ${results.length} occurrences of "${searchTerm}". Click on a result below to view and highlight it.`
       );
-      return results[0]; // Return first result for auto-navigation
+      return results[0]; 
     } else {
       const totalChars = pdfStore.totalCharacters;
       if (totalChars === 0) {
@@ -72,20 +68,18 @@ export function useAiCommands(): UseAiCommands {
     }
   };
 
-  /**
-   * Handle navigate command
-   */
+
   const handleNavigateCommand = async (
     command: string
-  ): Promise<number | SearchResult | null> => {
+  ): Promise<SearchResult | null> => {
     const pageMatch = command.match(/page\s+(\d+)/i);
-
     if (pageMatch) {
+
       const targetPage = parseInt(pageMatch[1] as string, 10);
       if (targetPage >= 1 && targetPage <= pdfStore.numPages) {
         pdfStore.setPageNum(targetPage);
         searchStore.setResponse(`Navigated to page ${targetPage}.`);
-        return targetPage;
+        return {pageNum:targetPage};
       } else {
         searchStore.setResponse(
           `Page ${targetPage} does not exist. PDF has ${pdfStore.numPages} pages.`
@@ -111,9 +105,7 @@ export function useAiCommands(): UseAiCommands {
     }
   };
 
-  /**
-   * Handle summarize command
-   */
+
   const handleSummarizeCommand = async (command: string): Promise<void> => {
     await extractAllText();
 
@@ -147,9 +139,6 @@ export function useAiCommands(): UseAiCommands {
     }
   };
 
-  /**
-   * Handle extract command
-   */
   const handleExtractCommand = async (command: string): Promise<void> => {
     await extractAllText();
 
@@ -163,9 +152,7 @@ export function useAiCommands(): UseAiCommands {
     searchStore.setResponse(`Text from page ${pdfStore.pageNum}:\n\n${currentPageText}`);
   };
 
-  /**
-   * Handle general command
-   */
+
   const handleGeneralCommand = async (command: string): Promise<void> => {
     await extractAllText();
 
@@ -191,12 +178,10 @@ export function useAiCommands(): UseAiCommands {
     }
   };
 
-  /**
-   * Main command handler
-   */
+
   const handleCommand = async (command: string): Promise<SearchResult | null> => {
     if (!command.trim()) return null;
-
+  
     searchStore.setProcessing(true);
     searchStore.setResponse('');
     pdfStore.clearError();
@@ -206,12 +191,10 @@ export function useAiCommands(): UseAiCommands {
     try {
       const lowerCommand = command.toLowerCase().trim();
 
-      // Route to appropriate handler
       if (lowerCommand.match(/^(find|search|locate|look for)/)) {
         return await handleSearchCommand(lowerCommand);
       } else if (lowerCommand.includes('go to') || lowerCommand.match(/page\s+\d+/)) {
-        const result = await handleNavigateCommand(lowerCommand);
-        return typeof result === 'object' ? result : null;
+        return await handleNavigateCommand(lowerCommand);
       } else if (lowerCommand.includes('summarize') || lowerCommand.includes('summary')) {
         await handleSummarizeCommand(lowerCommand);
         return null;

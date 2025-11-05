@@ -1,17 +1,17 @@
 <template>
-    <div class="pdf-controls" v-if="ollamaStore.connected">
+    <div class="pdf-controls" v-if="connected">
         <input type="file" @change="handleFileChange" accept=".pdf" ref="fileInputRef" />
 
-        <div v-if="pdfStore.numPages > 0" class="navigation">
-            <button @click="handlePrevious" :disabled="pdfStore.pageNum <= 1 || pdfStore.loading">
+        <div v-if="numPages > 0" class="navigation">
+            <button @click="handlePrevious" :disabled="pageNum <= 1 || loading">
                 Previous
             </button>
 
             <span class="page-info">
-                Page {{ pdfStore.pageNum }} of {{ pdfStore.numPages }}
+                Page {{ pageNum }} of {{ numPages }}
             </span>
 
-            <button @click="handleNext" :disabled="pdfStore.pageNum >= pdfStore.numPages || pdfStore.loading">
+            <button @click="handleNext" :disabled="pageNum >= numPages || loading">
                 Next
             </button>
 
@@ -23,10 +23,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, type Ref } from 'vue';
+import { ref } from 'vue';
 import { useOllamaStore } from '@/stores/ollamaStore';
 import { usePdfStore } from '@/stores/pdfStore';
 import { useSearchStore } from '@/stores/searchStore';
+import { storeToRefs } from 'pinia';
 
 interface Emits {
     (e: 'file-loaded', file: File): void;
@@ -40,6 +41,9 @@ const emit = defineEmits<Emits>();
 const ollamaStore = useOllamaStore();
 const pdfStore = usePdfStore();
 const searchStore = useSearchStore();
+
+const { connected } = storeToRefs(ollamaStore);
+const { pageNum, numPages, loading } = storeToRefs(pdfStore);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const handleFileChange = (event: Event): void => {
@@ -52,12 +56,12 @@ const handleFileChange = (event: Event): void => {
 
 const handlePrevious = (): void => {
     pdfStore.previousPage();
-    emit('page-changed', pdfStore.pageNum);
+    emit('page-changed', pageNum.value);
 };
 
 const handleNext = (): void => {
     pdfStore.nextPage();
-    emit('page-changed', pdfStore.pageNum);
+    emit('page-changed', pageNum.value);
 };
 
 const handleReset = (): void => {
@@ -95,34 +99,34 @@ button {
     cursor: pointer;
     font-size: 14px;
     transition: background-color 0.3s;
-}
 
-button:hover:not(:disabled) {
-    background-color: #45a049;
-}
+    &:hover:not(:disabled) {
+        background-color: #45a049;
+    }
 
-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-    opacity: 0.6;
+    &:disabled {
+        background-color: #a5d6a7;
+        cursor: not-allowed;
+    }
 }
 
 .reset-btn {
     background-color: #f44336;
+
+    &:hover:not(:disabled) {
+        background-color: #da190b;
+    }
 }
 
-.reset-btn:hover:not(:disabled) {
-    background-color: #da190b;
-}
 
 .test-btn {
     background-color: #ff9800;
     font-size: 12px;
     padding: 6px 12px;
-}
 
-.test-btn:hover:not(:disabled) {
-    background-color: #f57c00;
+    &:hover:not(:disabled) {
+        background-color: #f57c00;
+    }
 }
 
 .page-info {
@@ -139,9 +143,9 @@ input[type="file"] {
     cursor: pointer;
     background: white;
     transition: border-color 0.3s;
-}
 
-input[type="file"]:hover {
-    border-color: #4CAF50;
+    &:hover {
+        border-color: #4CAF50;
+    }
 }
 </style>
